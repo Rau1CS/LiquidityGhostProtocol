@@ -8,6 +8,7 @@ contract ConfigScript is Script {
     function run() external {
         LGPCore core = LGPCore(vm.envAddress("CORE"));
         address exoticPool = vm.envAddress("EXOTIC_POOL");
+        address aaveAdapter = vm.envAddress("AAVE_FLASHLOAN_ADAPTER");
 
         vm.startBroadcast();
         core.setChainAllowed(8453, true);
@@ -15,6 +16,7 @@ contract ConfigScript is Script {
         core.setMarketAllowed(exoticPool, true);
         core.setHoldbackTTL(24 hours);
         vm.stopBroadcast();
+
+        vm.serializeAddress("config", "AaveFlashloanAdapter", aaveAdapter);
     }
 }
-

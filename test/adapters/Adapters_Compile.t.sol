@@ -11,8 +11,8 @@ contract Adapters_CompileTest is Test {
     function testFlashloan() public {
         FlashloanAdapterMock mock = new FlashloanAdapterMock();
         vm.expectEmit();
-        emit IFlashloanAdapter.Flashloan(address(1), 1, address(this));
-        mock.flashloan(address(1), 1, address(this), "");
+        emit IFlashloanAdapter.Flashloan(address(1), 1);
+        mock.loanAndCallback(address(1), 1, "");
     }
 
     function testBridge() public {
@@ -25,4 +25,3 @@ contract Adapters_CompileTest is Test {
         mock.onReceive(address(1), 1, address(3), "");
     }
 }
-
