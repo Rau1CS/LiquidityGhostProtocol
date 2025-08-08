@@ -17,11 +17,11 @@ contract Adapters_CompileTest is Test {
 
     function testBridge() public {
         BridgeAdapterMock mock = new BridgeAdapterMock();
-        vm.expectEmit();
-        emit IBridgeAdapter.Sent(address(1), 1, address(2));
-        mock.send(address(1), 1, address(2), "");
-        vm.expectEmit();
-        emit IBridgeAdapter.Received(address(1), 1, address(3));
-        mock.onReceive(address(1), 1, address(3), "");
+        vm.expectEmit(true, false, false, false);
+        emit IBridgeAdapter.Sent(address(1), 0, 0, bytes32(0), bytes(""));
+        bytes32 guid = mock.send(address(1), 1, 2, "memo");
+        vm.expectEmit(true, false, false, true);
+        emit IBridgeAdapter.Received(address(1), 1, 0, guid, bytes("payload"));
+        mock.deliver(guid, "payload");
     }
 }

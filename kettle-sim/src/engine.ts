@@ -18,3 +18,26 @@ export function planOpportunity(opp: Opportunity): Plan {
   }
   return { crossChain: cross, steps };
 }
+
+// simple bridge helper used in simulations/tests
+export async function bridgeSend(
+  adapterSrc: any,
+  adapterDst: any,
+  token: string,
+  amount: bigint,
+  dstChainId: number,
+  memo: string,
+  payload: string
+): Promise<string> {
+  const latency = Number(process.env.BRIDGE_LATENCY_SEC || 0);
+  const timeout = Number(process.env.BRIDGE_TIMEOUT_SEC || 0);
+  const guid: string = await adapterSrc.send(token, amount, dstChainId, memo);
+  if (latency > 0) {
+    await new Promise((resolve) => setTimeout(resolve, latency * 1000));
+  }
+  if (timeout > 0 && latency > timeout) {
+    throw new Error("bridge timeout");
+  }
+  await adapterDst.deliver(guid, payload);
+  return guid;
+}
