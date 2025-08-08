@@ -11,9 +11,9 @@ contract LGPCore_CompileTest is Test {
     LGPCore core;
 
     function setUp() public {
-        EarningsEscrow escrow = new EarningsEscrow();
-        Reputation rep = new Reputation();
         FeeSplitter splitter = new FeeSplitter();
+        EarningsEscrow escrow = new EarningsEscrow(1 days, address(this), splitter);
+        Reputation rep = new Reputation();
         core = new LGPCore(escrow, rep, splitter);
     }
 
