@@ -20,3 +20,8 @@ out
 cache
 broadcast
 node_modules
+
+# include watcher opportunities
+!watcher/out/
+!watcher/out/opportunities/
+!watcher/out/opportunities/*.json
