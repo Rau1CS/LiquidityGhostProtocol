@@ -48,9 +48,7 @@ flowchart LR
 
   style K fill:#1b263b,stroke:#4cc9f0,color:#fff
   style LGP fill:#14213d,stroke:#fca311,color:#fff
-```
-
-### 1.1 Components
+1.1 Components
 Liquidation Watcher (off-chain): Indexes lending markets (Aave v3, Compound v3, Morpho) and flags near-liquidation positions.
 
 Classifier Engine: Hybrid HRM tree + rules; outputs risk_score ∈ [0,100] and a proposed rescue plan.
@@ -71,9 +69,11 @@ FlashloanAdapter: Same-chain flash loans (Aave v3 or Uniswap v3) to finance gas/
 
 BridgeAdapter: LayerZero OFT or canonical bridge helper; handles L1↔L2 value transfer.
 
-## 2. Execution Flows
-### 2.1 Liquidation Rescue (L2→L1 example)
-```mermaid
+2. Execution Flows
+2.1 Liquidation Rescue (L2→L1 example)
+mermaid
+Copy
+Edit
 sequenceDiagram
   participant Watcher
   participant Kettle
@@ -93,16 +93,16 @@ sequenceDiagram
   LGPCore-->>Kettle: pay(botShare)
   LGPCore-->>User: pay(userShare)
   LGPCore-->>Escrow: holdback(10%)
-```
-
-### 2.2 Failure & Revert Handling
+2.2 Failure & Revert Handling
 If any leg fails, kettle reverts the bundle; flash loans auto-revert; only relay fees may burn.
 
 If bridge latency exceeds window, kettle switches to same-chain only rescue or abandons.
 
-## 3. Smart Contracts (Solidity Interfaces)
-### 3.1 LGPCore
-```solidity
+3. Smart Contracts (Solidity Interfaces)
+3.1 LGPCore
+solidity
+Copy
+Edit
 interface ILGPCore {
   struct RescueReceipt {
     address user;
@@ -125,47 +125,47 @@ interface ILGPCore {
   function protocolFeeBps() external view returns (uint16);
   function holdbackBps() external view returns (uint16); // default 1000 = 10%
 }
-```
-
-### 3.2 Reputation
-```solidity
+3.2 Reputation
+solidity
+Copy
+Edit
 interface ILGPReputation {
   event ScoreUpdated(address indexed kettle, uint64 landed, uint64 wasted, uint64 reverts);
   function scoreOf(address kettle) external view returns (uint64 landed, uint64 wasted, uint64 reverts);
   function bump(address kettle, bool landedBundle, bool reverted) external; // only LGPCore
 }
-```
-
-### 3.3 EarningsEscrow
-```solidity
+3.3 EarningsEscrow
+solidity
+Copy
+Edit
 interface IEarningsEscrow {
   function lock(address kettle, uint256 amount, bytes32 receiptHash) external; // only LGPCore
   function proveFraud(bytes32 receiptHash, bytes calldata proof) external;     // anyone
   function release(bytes32 receiptHash) external;                               // after TTL
 }
-```
-
-### 3.4 FlashloanAdapter (Aave v3 default)
-```solidity
+3.4 FlashloanAdapter (Aave v3 default)
+solidity
+Copy
+Edit
 interface IFlashloanAdapter {
   function loanAndCallback(address asset, uint256 amount, bytes calldata data) external;
 }
-```
-
-### 3.5 BridgeAdapter
-```solidity
+3.5 BridgeAdapter
+solidity
+Copy
+Edit
 interface IBridgeAdapter {
   function send(address token, uint256 amount, uint16 dstChainId, bytes calldata memo) external payable;
   function receive(bytes calldata payload) external; // called by bridge endpoint
 }
-```
-
-## 4. Kettle Logic (SUAVE)
+4. Kettle Logic (SUAVE)
 Inputs: Encrypted Opportunity with fields: market, user, healthFactor, debtAsset, collateralAsset, minProfitUsd, deadlines, chain route.
 
 Pseudocode
 
-```python
+python
+Copy
+Edit
 op = decrypt(intent)
 assert now < op.deadline
 
@@ -188,10 +188,8 @@ swap_collateral_to_underlying()
 receipt = build_receipt(...)
 send_tx(LGPCore.settle, receipt, attestations, proofs)
 Reputation update is called by LGPCore based on bundle outcome.
-```
 
-## 5. Parameters & Config (MVP Defaults)
-```
+5. Parameters & Config (MVP Defaults)
 protocolFeeBps = 1500 (15%)
 
 userShare = 70–85% (set by policy; user gets delta after fees)
@@ -205,9 +203,8 @@ maxSlippageBps = 50 per swap leg
 bridgeTimeout = 8 minutes (fallback to same-chain)
 
 chains = {Ethereum:L1, Base:L2}
-```
 
-## 6. External Integrations
+6. External Integrations
 Lending protocols: call public liquidate() methods; no permissions required.
 
 Flash loans: Aave v3 (preferred) or Uniswap v3 flash swaps; fee ≈ 0.09%.
@@ -218,11 +215,13 @@ Relayers (optional): Gelato ERC-2771 for meta-tx sponsorship.
 
 Builders/Relays: Flashbots, Titan, Eden — private bundle inclusion.
 
-## 7. Data & APIs
-### 7.1 Public endpoints (read-only)
-`/.well-known/savings.json`
+7. Data & APIs
+7.1 Public endpoints (read-only)
+/.well-known/savings.json
 
-```json
+json
+Copy
+Edit
 {
   "version": 1,
   "window": "hour",
@@ -233,25 +232,23 @@ Builders/Relays: Flashbots, Titan, Eden — private bundle inclusion.
   "top_markets": ["AaveV3-ETH", "CompoundV3-Base"],
   "last_updated": "2025-08-08T00:00:00Z"
 }
-```
+/leaderboard.json – per-kettle landed bundles, net PnL.
 
-`/leaderboard.json` – per-kettle landed bundles, net PnL.
+/opportunities.json – sanitized, delayed feed for transparency (not real-time to avoid leak).
 
-`/opportunities.json` – sanitized, delayed feed for transparency (not real-time to avoid leak).
-
-### 7.2 Internal schemas
+7.2 Internal schemas
 Opportunity: {id, market, chainRoute, riskScore, deadline, debtAsset, debtAmount, collateralAsset, minProfitUsd}
 
 Receipt: on-chain struct (see ILGPCore).
 
-## 8. Security Model & Threats
-### Trust assumptions
+8. Security Model & Threats
+Trust assumptions
 
 Kettle code runs in attested TEE (SUAVE); secrets and strategies remain private until execution.
 
 Contracts are immutable or timelocked; protocol is non-custodial.
 
-### Threats & Mitigations
+Threats & Mitigations
 
 Front-running / order leakage → Encrypted bundles via SUAVE; no public mempool exposure.
 
@@ -263,15 +260,15 @@ Oracle manipulation → Prefer robust oracle sources; perform pre-rescue sanity 
 
 Sequencer downtime (L2) → Circuit breaker to same-chain rescues only.
 
-## 9. Gas & Cost Model (MVP)
+9. Gas & Cost Model (MVP)
 L1 liquidation: 300–600k gas typical; L2 legs 150–300k.
 
 Flash loan fee: 0.09% on borrowed notional (Aave v3).
 
 Expected min profitable rescue: $80–$120 surplus after gas.
 
-## 10. Deployment Plan
-### Environments
+10. Deployment Plan
+Environments
 
 Local: Foundry + Anvil + Hardhat; SUAVE devnet.
 
@@ -279,22 +276,29 @@ Testnet: Sepolia (L1) + Base Sepolia (L2).
 
 Mainnet: Ethereum + Base.
 
-### Steps
+Steps
 
-1. Deploy LGPCore, EarningsEscrow, Reputation, FeeSplitter to Sepolia.
-2. Deploy FlashloanAdapter (Aave v3 testnet) and BridgeAdapter (mock or LayerZero test).
-3. Stand up SUAVE kettle(s) with attestation.
-4. Connect builders (Flashbots test relay).
-5. Run synthetic rescues; verify savings.json updates.
-6. Promote to mainnet with low limits.
+Deploy LGPCore, EarningsEscrow, Reputation, FeeSplitter to Sepolia.
 
-### Config flags
+Deploy FlashloanAdapter (Aave v3 testnet) and BridgeAdapter (mock or LayerZero test).
 
-- paused (global)
-- per-market allowlist (Aave, Compound, Morpho identifiers)
-- per-chain gas caps
+Stand up SUAVE kettle(s) with attestation.
 
-## 11. Testing Strategy
+Connect builders (Flashbots test relay).
+
+Run synthetic rescues; verify savings.json updates.
+
+Promote to mainnet with low limits.
+
+Config flags
+
+paused (global)
+
+per-market allowlist (Aave, Compound, Morpho identifiers)
+
+per-chain gas caps
+
+11. Testing Strategy
 Unit: Foundry tests for fee math, holdback lifecycle, reputation updates.
 
 Integration: Tenderly fork tests simulating liquidation/repay/swap.
@@ -303,27 +307,31 @@ Chaos: Randomized bridge delays; reorg simulations; revert paths.
 
 Load: Kettle submits 100 rescues/hour; measure landed ratio, gas burn.
 
-### Acceptance Criteria (MVP)
+Acceptance Criteria (MVP)
 
-- ≥ 85% landed bundles under normal conditions.
-- Mean user payout accuracy ±0.5% vs quote.
-- Holdback releases automatically after TTL; fraud-proof path slashes.
+≥ 85% landed bundles under normal conditions.
 
-## 12. Observability & Ops
+Mean user payout accuracy ±0.5% vs quote.
+
+Holdback releases automatically after TTL; fraud-proof path slashes.
+
+12. Observability & Ops
 Metrics: rescued value, landed rate, avg surplus, per-market hit rate, kettle PnL, revert reasons.
 
 Dashboards: Grafana/Prometheus + public savings.json.
 
 Alerts: health factor spikes, landed ratio <70%, gas spikes, bridge delays.
 
-## 13. Roadmap (90 days)
-- Weeks 0–2: Deploy on testnets; single-market (Aave v3 USDC-ETH) rescues.
-- Weeks 3–6: Add Base; bridge adapter; publish dashboard.
-- Weeks 7–8: Earnings holdback + fraud-proofs; open private alpha (your kettles only).
-- Weeks 9–12: Reputation gating; optional third-party kettle registry (no bonds).
+13. Roadmap (90 days)
+Weeks 0–2: Deploy on testnets; single-market (Aave v3 USDC-ETH) rescues.
 
-## 14. Default Parameters (Appendix)
-```
+Weeks 3–6: Add Base; bridge adapter; publish dashboard.
+
+Weeks 7–8: Earnings holdback + fraud-proofs; open private alpha (your kettles only).
+
+Weeks 9–12: Reputation gating; optional third-party kettle registry (no bonds).
+
+14. Default Parameters (Appendix)
 PROTOCOL_FEE_BPS = 1500
 
 HOLD_BACK_BPS = 1000
@@ -335,12 +343,15 @@ MIN_PROFIT_USD = 80
 BRIDGE_TIMEOUT = 8m
 
 MAX_SLIPPAGE_BPS = 50
-```
 
-## 15. Open Questions (to resolve during MVP)
-- Which bridge path offers the best fast-finality for WETH between Base↔L1 under stress?
-- Should holdback be dynamic (higher for low-rep kettles)?
-- Is a minimal user-opt-in RPC (LGP-Protect) worth adding in MVP for more order flow?
-- Where to cap per-rescue gas to avoid tail-risk on volatile spikes?
+15. Open Questions (to resolve during MVP)
+Which bridge path offers the best fast-finality for WETH between Base↔L1 under stress?
+
+Should holdback be dynamic (higher for low-rep kettles)?
+
+Is a minimal user-opt-in RPC (LGP-Protect) worth adding in MVP for more order flow?
+
+Where to cap per-rescue gas to avoid tail-risk on volatile spikes?
 
 End of spec
+

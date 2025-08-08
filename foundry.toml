@@ -1,5 +1,6 @@
 [profile.default]
-src = 'src'
+[profile.default]
+src = 'contracts'
 test = 'test'
 script = 'script'
 out = 'out'
@@ -7,4 +8,5 @@ libs = ['lib']
 optimizer = true
 optimizer_runs = 200
 evm_version = 'paris'
+
 
