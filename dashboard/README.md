@@ -1,0 +1,1 @@
+Minimal dashboard stub.
