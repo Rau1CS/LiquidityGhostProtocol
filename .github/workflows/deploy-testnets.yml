@@ -6,12 +6,19 @@ on:
     branches: [ ai/lgp-mvp ]
     paths:
       - "contracts/**"
-      - "script/**"
+      - "scripts/**"
       - ".github/workflows/deploy-testnets.yml"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    # Mirror secrets into env so we can reference env.* in `if:` conditions
+    env:
+      L1_RPC_URL: ${{ secrets.L1_RPC_URL }}
+      L2_RPC_URL: ${{ secrets.L2_RPC_URL }}
+      DEPLOYER_KEY: ${{ secrets.DEPLOYER_KEY }}
+      ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -43,38 +50,39 @@ jobs:
 
       # ---------- L1 (Sepolia) ----------
       - name: Deploy L1 (Sepolia)
-        if: ${{ secrets.L1_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
-        env:
-          RPC_URL: ${{ secrets.L1_RPC_URL }}
-          PK: ${{ secrets.DEPLOYER_KEY }}
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        if: ${{ env.L1_RPC_URL != '' && env.DEPLOYER_KEY != '' }}
         run: |
           forge script scripts/Deploy_L1.s.sol \
-            --rpc-url "$RPC_URL" \
-            --private-key "$PK" \
+            --rpc-url "$L1_RPC_URL" \
+            --private-key "$DEPLOYER_KEY" \
             --broadcast ${ETHERSCAN_API_KEY:+--verify}
 
       - name: Record L1 addresses
-        if: ${{ secrets.L1_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
+        if: ${{ env.L1_RPC_URL != '' && env.DEPLOYER_KEY != '' }}
         run: |
-          test -f scripts/deploy-l1.json && ts-node scripts/record-addresses.ts scripts/deploy-l1.json || echo "deploy-l1.json not found (skipping)"
+          if [ -f scripts/deploy-l1.json ]; then
+            ts-node scripts/record-addresses.ts scripts/deploy-l1.json
+          else
+            echo "deploy-l1.json not found (skipping)"
+          fi
 
       # ---------- L2 (Base Sepolia) ----------
       - name: Deploy L2 (Base Sepolia)
-        if: ${{ secrets.L2_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
-        env:
-          RPC_URL: ${{ secrets.L2_RPC_URL }}
-          PK: ${{ secrets.DEPLOYER_KEY }}
+        if: ${{ env.L2_RPC_URL != '' && env.DEPLOYER_KEY != '' }}
         run: |
           forge script scripts/Deploy_L2.s.sol \
-            --rpc-url "$RPC_URL" \
-            --private-key "$PK" \
+            --rpc-url "$L2_RPC_URL" \
+            --private-key "$DEPLOYER_KEY" \
             --broadcast
 
       - name: Record L2 addresses
-        if: ${{ secrets.L2_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
+        if: ${{ env.L2_RPC_URL != '' && env.DEPLOYER_KEY != '' }}
         run: |
-          test -f scripts/deploy-l2.json && ts-node scripts/record-addresses.ts scripts/deploy-l2.json || echo "deploy-l2.json not found (skipping)"
+          if [ -f scripts/deploy-l2.json ]; then
+            ts-node scripts/record-addresses.ts scripts/deploy-l2.json
+          else
+            echo "deploy-l2.json not found (skipping)"
+          fi
 
       - name: Upload addresses.json
         uses: actions/upload-artifact@v4
