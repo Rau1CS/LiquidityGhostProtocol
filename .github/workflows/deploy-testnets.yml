@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install Foundry via official action (reliable PATH)
+      # Reliable Foundry install
       - name: Set up Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -41,9 +41,10 @@ jobs:
           path: lib
           key: forge-lib-${{ hashFiles('foundry.toml') }}
 
+      # NOTE: remove --no-commit (not supported on this runner's forge)
       - name: Install forge deps (forge-std)
         run: |
-          if [ ! -d lib/forge-std ]; then forge install foundry-rs/forge-std@v1.9.3 --no-commit; fi
+          if [ ! -d lib/forge-std ]; then forge install foundry-rs/forge-std@v1.9.3; fi
 
       - name: Build & test
         run: forge test -vvv
@@ -53,7 +54,6 @@ jobs:
           mkdir -p scripts
           npm i -g ts-node typescript
 
-      # Resolve deploy script paths (handle both script/ and scripts/)
       - name: Resolve deploy script paths
         id: paths
         run: |
