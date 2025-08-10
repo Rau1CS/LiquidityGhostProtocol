@@ -22,21 +22,28 @@ jobs:
           ~/.foundry/bin/foundryup
           echo "$HOME/.foundry/bin" >> $GITHUB_PATH
 
-      - name: Cache lib
+      - name: Cache forge lib
         uses: actions/cache@v4
         with:
           path: lib
           key: forge-lib-${{ hashFiles('foundry.toml') }}
 
-      - name: Install forge deps
+      - name: Install forge deps (forge-std)
         run: |
           if [ ! -d lib/forge-std ]; then forge install foundry-rs/forge-std@v1.9.3 --no-commit; fi
 
       - name: Build & test
         run: forge test -vvv
 
-      # -------- Sepolia (L1) --------
+      - name: Ensure scripts dir
+        run: mkdir -p scripts
+
+      - name: Install ts-node (for record-addresses.ts)
+        run: npm i -g ts-node typescript
+
+      # ---------- L1 (Sepolia) ----------
       - name: Deploy L1 (Sepolia)
+        if: ${{ secrets.L1_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
         env:
           RPC_URL: ${{ secrets.L1_RPC_URL }}
           PK: ${{ secrets.DEPLOYER_KEY }}
@@ -48,12 +55,13 @@ jobs:
             --broadcast ${ETHERSCAN_API_KEY:+--verify}
 
       - name: Record L1 addresses
+        if: ${{ secrets.L1_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
         run: |
-          npm i -g ts-node typescript
-          ts-node scripts/record-addresses.ts scripts/deploy-l1.json
+          test -f scripts/deploy-l1.json && ts-node scripts/record-addresses.ts scripts/deploy-l1.json || echo "deploy-l1.json not found (skipping)"
 
-      # -------- Base Sepolia (L2) --------
+      # ---------- L2 (Base Sepolia) ----------
       - name: Deploy L2 (Base Sepolia)
+        if: ${{ secrets.L2_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
         env:
           RPC_URL: ${{ secrets.L2_RPC_URL }}
           PK: ${{ secrets.DEPLOYER_KEY }}
@@ -64,8 +72,9 @@ jobs:
             --broadcast
 
       - name: Record L2 addresses
+        if: ${{ secrets.L2_RPC_URL != '' && secrets.DEPLOYER_KEY != '' }}
         run: |
-          ts-node scripts/record-addresses.ts scripts/deploy-l2.json
+          test -f scripts/deploy-l2.json && ts-node scripts/record-addresses.ts scripts/deploy-l2.json || echo "deploy-l2.json not found (skipping)"
 
       - name: Upload addresses.json
         uses: actions/upload-artifact@v4
@@ -73,4 +82,3 @@ jobs:
           name: lgp-addresses
           path: scripts/addresses.json
           if-no-files-found: warn
-
