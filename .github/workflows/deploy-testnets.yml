@@ -6,14 +6,13 @@ on:
     branches: [ ai/lgp-mvp ]
     paths:
       - "contracts/**"
+      - "script/**"
       - "scripts/**"
       - ".github/workflows/deploy-testnets.yml"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
-    # Mirror secrets into env so we can reference env.* in `if:` conditions
     env:
       L1_RPC_URL: ${{ secrets.L1_RPC_URL }}
       L2_RPC_URL: ${{ secrets.L2_RPC_URL }}
@@ -23,11 +22,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Foundry
+      # Install Foundry via official action (reliable PATH)
+      - name: Set up Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Show tool versions
         run: |
-          curl -L https://foundry.paradigm.xyz | bash
-          ~/.foundry/bin/foundryup
-          echo "$HOME/.foundry/bin" >> $GITHUB_PATH
+          which forge && forge --version
+          which cast && cast --version
+          node --version || true
+          npm --version || true
 
       - name: Cache forge lib
         uses: actions/cache@v4
@@ -42,17 +48,27 @@ jobs:
       - name: Build & test
         run: forge test -vvv
 
-      - name: Ensure scripts dir
-        run: mkdir -p scripts
+      - name: Ensure scripts dir + ts-node
+        run: |
+          mkdir -p scripts
+          npm i -g ts-node typescript
 
-      - name: Install ts-node (for record-addresses.ts)
-        run: npm i -g ts-node typescript
+      # Resolve deploy script paths (handle both script/ and scripts/)
+      - name: Resolve deploy script paths
+        id: paths
+        run: |
+          L1="scripts/Deploy_L1.s.sol"; [ -f "$L1" ] || L1="script/Deploy_L1.s.sol"
+          L2="scripts/Deploy_L2.s.sol"; [ -f "$L2" ] || L2="script/Deploy_L2.s.sol"
+          echo "L1_PATH=$L1" >> $GITHUB_OUTPUT
+          echo "L2_PATH=$L2" >> $GITHUB_OUTPUT
+          echo "Using L1=$L1"
+          echo "Using L2=$L2"
 
       # ---------- L1 (Sepolia) ----------
       - name: Deploy L1 (Sepolia)
         if: ${{ env.L1_RPC_URL != '' && env.DEPLOYER_KEY != '' }}
         run: |
-          forge script scripts/Deploy_L1.s.sol \
+          forge script "${{ steps.paths.outputs.L1_PATH }}" \
             --rpc-url "$L1_RPC_URL" \
             --private-key "$DEPLOYER_KEY" \
             --broadcast ${ETHERSCAN_API_KEY:+--verify}
@@ -70,7 +86,7 @@ jobs:
       - name: Deploy L2 (Base Sepolia)
         if: ${{ env.L2_RPC_URL != '' && env.DEPLOYER_KEY != '' }}
         run: |
-          forge script scripts/Deploy_L2.s.sol \
+          forge script "${{ steps.paths.outputs.L2_PATH }}" \
             --rpc-url "$L2_RPC_URL" \
             --private-key "$DEPLOYER_KEY" \
             --broadcast
