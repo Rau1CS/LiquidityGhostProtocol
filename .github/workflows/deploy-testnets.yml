@@ -12,6 +12,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -34,9 +35,8 @@ jobs:
       - name: Build & test
         run: forge test -vvv
 
-      # --- L1 (Sepolia) ---
+      # -------- Sepolia (L1) --------
       - name: Deploy L1 (Sepolia)
-        id: deploy_l1
         env:
           RPC_URL: ${{ secrets.L1_RPC_URL }}
           PK: ${{ secrets.DEPLOYER_KEY }}
@@ -45,19 +45,15 @@ jobs:
           forge script scripts/Deploy_L1.s.sol \
             --rpc-url "$RPC_URL" \
             --private-key "$PK" \
-            --broadcast ${ETHERSCAN_API_KEY:+--verify} | tee l1_deploy.log
-          # Expect Deploy_L1.s.sol to print a single JSON line near the end like:
-          # {"LGPCore":"0x..","EarningsEscrow":"0x..",...}
-          echo "CONTRACTS_JSON_L1=$(grep -o '{.*}' l1_deploy.log | tail -n1)" >> $GITHUB_ENV
+            --broadcast ${ETHERSCAN_API_KEY:+--verify}
 
       - name: Record L1 addresses
         run: |
           npm i -g ts-node typescript
-          CHAIN_ID=11155111 CONTRACTS_JSON="${{ env.CONTRACTS_JSON_L1 }}" ts-node scripts/record-addresses.ts || true
+          ts-node scripts/record-addresses.ts scripts/deploy-l1.json
 
-      # --- L2 (Base Sepolia) ---
+      # -------- Base Sepolia (L2) --------
       - name: Deploy L2 (Base Sepolia)
-        id: deploy_l2
         env:
           RPC_URL: ${{ secrets.L2_RPC_URL }}
           PK: ${{ secrets.DEPLOYER_KEY }}
@@ -65,12 +61,11 @@ jobs:
           forge script scripts/Deploy_L2.s.sol \
             --rpc-url "$RPC_URL" \
             --private-key "$PK" \
-            --broadcast | tee l2_deploy.log
-          echo "CONTRACTS_JSON_L2=$(grep -o '{.*}' l2_deploy.log | tail -n1)" >> $GITHUB_ENV
+            --broadcast
 
       - name: Record L2 addresses
         run: |
-          CHAIN_ID=84532 CONTRACTS_JSON="${{ env.CONTRACTS_JSON_L2 }}" ts-node scripts/record-addresses.ts || true
+          ts-node scripts/record-addresses.ts scripts/deploy-l2.json
 
       - name: Upload addresses.json
         uses: actions/upload-artifact@v4
@@ -78,3 +73,4 @@ jobs:
           name: lgp-addresses
           path: scripts/addresses.json
           if-no-files-found: warn
+
