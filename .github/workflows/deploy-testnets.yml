@@ -1,0 +1,80 @@
+name: Deploy LGP to Sepolia & Base Sepolia
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ ai/lgp-mvp ]
+    paths:
+      - "contracts/**"
+      - "script/**"
+      - ".github/workflows/deploy-testnets.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        run: |
+          curl -L https://foundry.paradigm.xyz | bash
+          ~/.foundry/bin/foundryup
+          echo "$HOME/.foundry/bin" >> $GITHUB_PATH
+
+      - name: Cache lib
+        uses: actions/cache@v4
+        with:
+          path: lib
+          key: forge-lib-${{ hashFiles('foundry.toml') }}
+
+      - name: Install forge deps
+        run: |
+          if [ ! -d lib/forge-std ]; then forge install foundry-rs/forge-std@v1.9.3 --no-commit; fi
+
+      - name: Build & test
+        run: forge test -vvv
+
+      # --- L1 (Sepolia) ---
+      - name: Deploy L1 (Sepolia)
+        id: deploy_l1
+        env:
+          RPC_URL: ${{ secrets.L1_RPC_URL }}
+          PK: ${{ secrets.DEPLOYER_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        run: |
+          forge script scripts/Deploy_L1.s.sol \
+            --rpc-url "$RPC_URL" \
+            --private-key "$PK" \
+            --broadcast ${ETHERSCAN_API_KEY:+--verify} | tee l1_deploy.log
+          # Expect Deploy_L1.s.sol to print a single JSON line near the end like:
+          # {"LGPCore":"0x..","EarningsEscrow":"0x..",...}
+          echo "CONTRACTS_JSON_L1=$(grep -o '{.*}' l1_deploy.log | tail -n1)" >> $GITHUB_ENV
+
+      - name: Record L1 addresses
+        run: |
+          npm i -g ts-node typescript
+          CHAIN_ID=11155111 CONTRACTS_JSON="${{ env.CONTRACTS_JSON_L1 }}" ts-node scripts/record-addresses.ts || true
+
+      # --- L2 (Base Sepolia) ---
+      - name: Deploy L2 (Base Sepolia)
+        id: deploy_l2
+        env:
+          RPC_URL: ${{ secrets.L2_RPC_URL }}
+          PK: ${{ secrets.DEPLOYER_KEY }}
+        run: |
+          forge script scripts/Deploy_L2.s.sol \
+            --rpc-url "$RPC_URL" \
+            --private-key "$PK" \
+            --broadcast | tee l2_deploy.log
+          echo "CONTRACTS_JSON_L2=$(grep -o '{.*}' l2_deploy.log | tail -n1)" >> $GITHUB_ENV
+
+      - name: Record L2 addresses
+        run: |
+          CHAIN_ID=84532 CONTRACTS_JSON="${{ env.CONTRACTS_JSON_L2 }}" ts-node scripts/record-addresses.ts || true
+
+      - name: Upload addresses.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: lgp-addresses
+          path: scripts/addresses.json
+          if-no-files-found: warn
