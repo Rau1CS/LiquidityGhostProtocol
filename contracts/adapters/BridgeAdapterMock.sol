@@ -55,3 +55,4 @@ contract BridgeAdapterMock is IBridgeAdapter {
         emit Received(p.token, p.amount, /*srcChainId*/ 0, guid, payload);
     }
 }
+
