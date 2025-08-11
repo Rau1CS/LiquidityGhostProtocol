@@ -15,94 +15,92 @@ contract LGPCore_FeesTest is Test {
     FeeSplitter internal fs;
 
     address payable internal treasury = payable(address(0x100));
-    address payable internal kettle = payable(address(0x400));
-    address payable internal user = payable(address(0x300));
+    address payable internal kettle   = payable(address(0x400));
+    address payable internal user     = payable(address(0x300));
     address internal market = address(0x200);
 
     function setUp() public {
-        esc = new EarningsEscrow();
-        rep = new Reputation();
         fs = new FeeSplitter();
+        esc = new EarningsEscrow(address(fs), 1000, 86401);
+        rep = new Reputation();
 
-        core = new LGPCore(address(esc), address(rep), address(fs), treasury);
+        core = new LGPCore(address(esc), address(rep), address(fs));
+        core.setTreasury(treasury);
 
-        // Happy path allowlists so fee math can run
+        // open gates so we exercise fee math
         core.setMarketAllowed(market, true);
         core.setChainAllowed(block.chainid, true);
 
-        // Tidy balances so we can compare deltas cleanly
+        // zero balances so delta assertions are clean
         vm.deal(kettle, 0);
         vm.deal(user, 0);
         vm.deal(treasury, 0);
     }
 
-    function _r(uint256 userPayout, uint256 botPayout, bytes32 oppId) internal view returns (LGPCore.RescueReceipt memory r) {
+    function _r(uint256 u, uint256 b, bytes32 id) internal view returns (LGPCore.RescueReceipt memory r) {
         r.user = user;
         r.market = market;
         r.debtAsset = address(0);
         r.collateralAsset = address(0);
         r.debtRepaid = 0;
         r.collateralClaimed = 0;
-        r.userPayout = userPayout;
-        r.botPayout = botPayout;
-        r.opportunityId = oppId;
+        r.userPayout = u;
+        r.botPayout = b;
+        r.opportunityId = id;
     }
 
     function testSmallS() public {
-        // S = 25 = user 13 + bot 7 + holdback 2 + fee 3  (with feeBps=1500, holdbackBps=1000)
+        // S = 25 => user 13, bot 7, holdback 2, fee 3
         uint256 S = 25;
         LGPCore.RescueReceipt memory r = _r(13, 7, keccak256("s"));
 
-        uint256 beforeUser = user.balance;
-        uint256 beforeBot = kettle.balance;
-        uint256 beforeTreasury = treasury.balance;
+        uint256 u0 = user.balance;
+        uint256 k0 = kettle.balance;
+        uint256 t0 = treasury.balance;
 
         vm.prank(kettle);
         core.settle{value: S}(r, "", "");
 
         uint16 feeBps = core.protocolFeeBps();
-        uint16 hbBps = core.holdbackBps();
+        uint16 hbBps  = core.holdbackBps();
         uint256 fee = (S * feeBps) / 10_000;
         uint256 botGross = S - fee;
         uint256 holdback = (botGross * hbBps) / 10_000;
 
-        assertEq(user.balance - beforeUser, r.userPayout);
-        assertEq(kettle.balance - beforeBot, r.botPayout);
-        assertEq(treasury.balance - beforeTreasury, fee);
-
-        // Escrow received the holdback (we don’t read its balance here; lock event is checked in Escrow tests)
-        // Accounting identity sanity
+        assertEq(user.balance - u0, r.userPayout);
+        assertEq(kettle.balance - k0, r.botPayout);
+        assertEq(treasury.balance - t0, fee);
         assertEq(r.userPayout + r.botPayout + holdback + fee, S);
     }
 
     function testMediumS() public {
-        // S = 120 = user 60 + bot 32 + holdback 10 + fee 18
+        // S = 120 => user 60, bot 32, holdback 10, fee 18
         uint256 S = 120;
         LGPCore.RescueReceipt memory r = _r(60, 32, keccak256("m"));
 
-        uint256 beforeUser = user.balance;
-        uint256 beforeBot = kettle.balance;
-        uint256 beforeTreasury = treasury.balance;
+        uint256 u0 = user.balance;
+        uint256 k0 = kettle.balance;
+        uint256 t0 = treasury.balance;
 
         vm.prank(kettle);
         core.settle{value: S}(r, "", "");
 
         uint16 feeBps = core.protocolFeeBps();
-        uint16 hbBps = core.holdbackBps();
+        uint16 hbBps  = core.holdbackBps();
         uint256 fee = (S * feeBps) / 10_000;
         uint256 botGross = S - fee;
         uint256 holdback = (botGross * hbBps) / 10_000;
 
-        assertEq(user.balance - beforeUser, r.userPayout);
-        assertEq(kettle.balance - beforeBot, r.botPayout);
-        assertEq(treasury.balance - beforeTreasury, fee);
+        assertEq(user.balance - u0, r.userPayout);
+        assertEq(kettle.balance - k0, r.botPayout);
+        assertEq(treasury.balance - t0, fee);
         assertEq(r.userPayout + r.botPayout + holdback + fee, S);
     }
 
     function testZeroSReverts() public {
         LGPCore.RescueReceipt memory r = _r(0, 0, keccak256("z"));
         vm.prank(kettle);
-        vm.expectRevert(); // core should reject zero-value settlements
+        vm.expectRevert();
         core.settle{value: 0}(r, "", "");
     }
 }
