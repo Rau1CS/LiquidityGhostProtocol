@@ -16,24 +16,26 @@ contract BridgeAdapterMock is IBridgeAdapter {
 
     mapping(bytes32 => Packet) public packets;
 
-    // naive GUID generator
-    function _guid(address token, uint256 amount, uint16 dstChainId, address sender, uint256 nonce)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encode(token, amount, dstChainId, sender, nonce));
+    // rename to avoid param shadowing
+    uint256 public nonceCounter;
+
+    function _guid(
+        address token,
+        uint256 amount,
+        uint16 dstChainId,
+        address sender,
+        uint256 nonce_
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(token, amount, dstChainId, sender, nonce_));
     }
 
-    uint256 public nonce;
-
-    function send(address token, uint256 amount, uint16 dstChainId, bytes calldata memo)
-        external
-        payable
-        override
-        returns (bytes32 guid)
-    {
-        guid = _guid(token, amount, dstChainId, msg.sender, ++nonce);
+    function send(
+        address token,
+        uint256 amount,
+        uint16 dstChainId,
+        bytes calldata memo
+    ) external payable override returns (bytes32 guid) {
+        guid = _guid(token, amount, dstChainId, msg.sender, ++nonceCounter);
         packets[guid] = Packet({
             token: token,
             amount: amount,
@@ -46,14 +48,10 @@ contract BridgeAdapterMock is IBridgeAdapter {
         emit Sent(token, amount, dstChainId, guid, memo);
     }
 
-    /// In real bridges this would be called by the dst endpoint.
-    /// Our tests/sim call it when latency is "over".
     function deliver(bytes32 guid, bytes calldata payload) external override {
         Packet storage p = packets[guid];
         require(!p.delivered, "ALREADY_DELIVERED");
         p.delivered = true;
-        // For simplicity, deliver funds to the original sender on dst chain emulated by test harness
-        // The test will simulate that adapter exists on both chains; this contract only logs the event.
         emit Received(p.token, p.amount, /*srcChainId*/ 0, guid, payload);
     }
 }
