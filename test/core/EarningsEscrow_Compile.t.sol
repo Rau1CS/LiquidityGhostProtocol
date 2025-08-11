@@ -12,12 +12,13 @@ contract EarningsEscrow_CompileTest is Test {
 
     function setUp() public {
         fs = new FeeSplitter();
-        esc = new EarningsEscrow();
+        // match your constructor: (feeSplitter, holdbackBps, ttlSecs)
+        esc = new EarningsEscrow(address(fs), 1000, 86401);
         kettle = payable(makeAddr("kettle"));
     }
 
     function testCalls() public {
-        // Lock → warp → release to a PAYABLE EOA (not a precompile)
+        // Lock → warp → release to a PAYABLE EOA
         bytes32 receipt = keccak256("r1");
         vm.deal(address(this), 1 ether);
         esc.lock{value: 1 ether}(kettle, 1 ether, receipt);
