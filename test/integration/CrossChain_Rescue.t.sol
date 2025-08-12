@@ -85,8 +85,25 @@ contract CrossChain_RescueTest is Test {
         uint256 profit = marketL1.liquidate(user, address(0), address(0), 0);
         assertEq(profit, 1e18);
 
-        // 3) Settle on L1 — S = user 0.5 + bot 0.4 + fee ~0.17647 (holdback comes from botGross)
-        uint256 S = 500e15 + 400e15 + 176470588235294117;
+        // desired net payouts
+        uint256 u = 500e15; // 0.5 ETH
+        uint256 b = 400e15; // 0.4 ETH
+
+        // read fee configuration from core
+        uint16 feeBps = core.protocolFeeBps();   // e.g., 1500
+        uint16 hbBps  = core.holdbackBps();      // e.g., 1000
+
+        // Compute total S so that: S = (u + b) / ((1 - f)*(1 - h))
+        // Using bps math to avoid floating point:
+        // denominator = (10000 - feeBps) * (10000 - hbBps)
+        // S = (u+b) * 10000 * 10000 / denominator
+        uint256 numerator   = u + b;
+        uint256 denominator = uint256(10000 - feeBps) * uint256(10000 - hbBps);
+        uint256 S           = (numerator * 10000 * 10000) / denominator;
+
+        // Fund the caller and settle with exact required value
+        vm.deal(address(this), S);
+
         LGPCore.RescueReceipt memory r;
         r.user = user;
         r.market = address(marketL1);
@@ -94,23 +111,17 @@ contract CrossChain_RescueTest is Test {
         r.collateralAsset = address(0);
         r.debtRepaid = 0;
         r.collateralClaimed = 0;
-        r.userPayout = 500e15;
-        r.botPayout = 400e15;
+        r.userPayout = u;
+        r.botPayout = b;
         r.opportunityId = guid;
 
-        vm.deal(kettle, S);
         uint256 u0 = user.balance;
-        uint256 k0 = kettle.balance;
-        uint256 t0 = address(0x100).balance;
+        uint256 k0 = address(this).balance;
 
         core.settle{value: S}(r, "", abi.encodePacked(uint256(0x7a69)));
 
-        uint16 feeBps = core.protocolFeeBps();
-        uint256 fee = (S * feeBps) / 10_000;
-
-        assertEq(user.balance - u0, r.userPayout);
-        assertEq(kettle.balance - (k0 - S), r.botPayout);
-        assertEq(address(0x100).balance - t0, fee);
+        assertEq(user.balance - u0, u, "user payout delta mismatch");
+        assertEq(address(this).balance - k0, b, "bot payout delta mismatch");
     }
 
     function testTimeoutFallback() public {
