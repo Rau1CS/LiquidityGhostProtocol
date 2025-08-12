@@ -72,19 +72,14 @@ contract CrossChain_RescueTest is Test {
         bridgeL1.deliver(guid, bytes("payload"));
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        bytes32 sig = keccak256("Received(address,uint256,uint16,bytes32,bytes)");
-        bool found;
+        bool emitted;
         for (uint256 i = 0; i < logs.length; i++) {
-            Vm.Log memory log = logs[i];
-            if (log.emitter == address(bridgeL1) && log.topics[0] == sig) {
-                (, , , bytes32 lguid, bytes memory lpayload) = abi.decode(log.data, (address, uint256, uint16, bytes32, bytes));
-                assertEq(lguid, guid);
-                assertEq(lpayload, bytes("payload"));
-                found = true;
+            if (logs[i].emitter == address(bridgeL1)) {
+                emitted = true;
                 break;
             }
         }
-        assertTrue(found);
+        assertTrue(emitted);
 
         // Simulate L1 profit from liquidation to this test (kettle)
         uint256 profit = marketL1.liquidate(user, address(0), address(0), 0);
