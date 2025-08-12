@@ -16,7 +16,7 @@ contract BridgeAdapterMock is IBridgeAdapter {
 
     mapping(bytes32 => Packet) public packets;
 
-    // rename to avoid param shadowing
+    // sequential nonce to build unique guids
     uint256 public nonceCounter;
 
     function _guid(

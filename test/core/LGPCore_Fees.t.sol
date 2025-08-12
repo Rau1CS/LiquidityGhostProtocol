@@ -21,10 +21,10 @@ contract LGPCore_FeesTest is Test {
 
     function setUp() public {
         fs = new FeeSplitter();
-        esc = new EarningsEscrow(address(fs), 1000, 86401);
+        esc = new EarningsEscrow(86401, treasury, fs);
         rep = new Reputation();
 
-        core = new LGPCore(address(esc), address(rep), address(fs));
+        core = new LGPCore(esc, rep, fs);
         core.setTreasury(treasury);
 
         // open gates so we exercise fee math
@@ -54,6 +54,7 @@ contract LGPCore_FeesTest is Test {
         uint256 S = 25;
         LGPCore.RescueReceipt memory r = _r(13, 7, keccak256("s"));
 
+        vm.deal(kettle, S);
         uint256 u0 = user.balance;
         uint256 k0 = kettle.balance;
         uint256 t0 = treasury.balance;
@@ -68,7 +69,7 @@ contract LGPCore_FeesTest is Test {
         uint256 holdback = (botGross * hbBps) / 10_000;
 
         assertEq(user.balance - u0, r.userPayout);
-        assertEq(kettle.balance - k0, r.botPayout);
+        assertEq(kettle.balance - (k0 - S), r.botPayout);
         assertEq(treasury.balance - t0, fee);
         assertEq(r.userPayout + r.botPayout + holdback + fee, S);
     }
@@ -78,6 +79,7 @@ contract LGPCore_FeesTest is Test {
         uint256 S = 120;
         LGPCore.RescueReceipt memory r = _r(60, 32, keccak256("m"));
 
+        vm.deal(kettle, S);
         uint256 u0 = user.balance;
         uint256 k0 = kettle.balance;
         uint256 t0 = treasury.balance;
@@ -92,7 +94,7 @@ contract LGPCore_FeesTest is Test {
         uint256 holdback = (botGross * hbBps) / 10_000;
 
         assertEq(user.balance - u0, r.userPayout);
-        assertEq(kettle.balance - k0, r.botPayout);
+        assertEq(kettle.balance - (k0 - S), r.botPayout);
         assertEq(treasury.balance - t0, fee);
         assertEq(r.userPayout + r.botPayout + holdback + fee, S);
     }
