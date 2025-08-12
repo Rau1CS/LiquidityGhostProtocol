@@ -46,7 +46,7 @@ jobs:
         run: |
           if [ ! -d lib/forge-std ]; then forge install foundry-rs/forge-std@v1.9.3; fi
 
-      - name: Build & test
+      - name: Run tests
         run: forge test -vvv
 
       - name: Ensure scripts dir + ts-node

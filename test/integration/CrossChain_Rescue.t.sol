@@ -9,6 +9,7 @@ import {Reputation} from "../../contracts/core/Reputation.sol";
 import {FeeSplitter} from "../../contracts/core/FeeSplitter.sol";
 
 import {BridgeAdapterMock} from "../../contracts/adapters/BridgeAdapterMock.sol";
+import {IBridgeAdapter} from "../../contracts/adapters/IBridgeAdapter.sol";
 import {MockERC20} from "../../contracts/mocks/MockERC20.sol";
 import {MockLendingMarket} from "../../contracts/mocks/MockLendingMarket.sol";
 
@@ -34,14 +35,14 @@ contract CrossChain_RescueTest is Test {
     function setUp() public {
         // L1 core stack
         fs = new FeeSplitter();
-        esc = new EarningsEscrow(address(fs), 1000, 86401);
+        esc = new EarningsEscrow(86401, address(0x200), fs);
         rep = new Reputation();
 
-        core = new LGPCore(address(esc), address(rep), address(fs));
+        core = new LGPCore(esc, rep, fs);
         core.setTreasury(address(0x100));
 
         // Allow current chain + a dummy market
-        marketL1 = new MockLendingMarket(address(0));
+        marketL1 = new MockLendingMarket();
         core.setMarketAllowed(address(marketL1), true);
         core.setChainAllowed(block.chainid, true);
 
@@ -64,8 +65,8 @@ contract CrossChain_RescueTest is Test {
 
         // 2) After latency, “deliver” to L1 and credit dst-side funds (simulated)
         vm.warp(block.timestamp + 11);
-        vm.expectEmit(true, false, false, true);
-        emit BridgeAdapterMock.Received(address(wethL2), 1 ether, 0, guid, bytes("payload"));
+        vm.expectEmit(true, false, false, true, address(bridgeL1));
+        emit IBridgeAdapter.Received(address(wethL2), 1 ether, 0, guid, bytes("payload"));
         bridgeL1.deliver(guid, bytes("payload"));
 
         // Simulate L1 profit from liquidation to this test (kettle)
@@ -85,13 +86,19 @@ contract CrossChain_RescueTest is Test {
         r.botPayout = 400e15;
         r.opportunityId = guid;
 
+        vm.deal(kettle, S);
         uint256 u0 = user.balance;
         uint256 k0 = kettle.balance;
+        uint256 t0 = address(0x100).balance;
 
         core.settle{value: S}(r, "", abi.encodePacked(uint256(0x7a69)));
 
+        uint16 feeBps = core.protocolFeeBps();
+        uint256 fee = (S * feeBps) / 10_000;
+
         assertEq(user.balance - u0, r.userPayout);
-        assertEq(kettle.balance - k0, r.botPayout);
+        assertEq(kettle.balance - (k0 - S), r.botPayout);
+        assertEq(address(0x100).balance - t0, fee);
     }
 
     function testTimeoutFallback() public {

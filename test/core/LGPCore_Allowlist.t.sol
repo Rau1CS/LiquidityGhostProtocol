@@ -21,12 +21,12 @@ contract LGPCore_AllowlistTest is Test {
 
     function setUp() public {
         fs = new FeeSplitter();
-        // EarningsEscrow expects (feeSplitter, holdbackBps, ttlSecs)
-        esc = new EarningsEscrow(address(fs), 1000, 86401);
+        // EarningsEscrow constructor: (ttl, treasury, feeSplitter)
+        esc = new EarningsEscrow(86401, treasury, fs);
         rep = new Reputation();
 
         // LGPCore expects (escrow, reputation, feeSplitter). Treasury set via setter.
-        core = new LGPCore(address(esc), address(rep), address(fs));
+        core = new LGPCore(esc, rep, fs);
         core.setTreasury(treasury);
 
         // Fund the prank caller so it can attach value

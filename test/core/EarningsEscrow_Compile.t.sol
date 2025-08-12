@@ -12,8 +12,8 @@ contract EarningsEscrow_CompileTest is Test {
 
     function setUp() public {
         fs = new FeeSplitter();
-        // match your constructor: (feeSplitter, holdbackBps, ttlSecs)
-        esc = new EarningsEscrow(address(fs), 1000, 86401);
+        // EarningsEscrow constructor: (ttl, treasury, feeSplitter)
+        esc = new EarningsEscrow(86401, address(this), fs);
         kettle = payable(makeAddr("kettle"));
     }
 

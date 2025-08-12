@@ -22,10 +22,10 @@ contract Adapters_CompileTest is Test {
     }
 
     function testBridge() public {
-        // Only partially constrain event to avoid fragility
-        vm.expectEmit(true, false, false, true);
-        emit IBridgeAdapter.Sent(address(token), 1, 2, bytes32(0), bytes("memo"));
-
+        uint256 nonceBefore = adapter.nonceCounter();
+        bytes32 guid = keccak256(abi.encode(address(token), uint256(1), uint16(2), address(this), nonceBefore + 1));
+        vm.expectEmit(true, false, false, true, address(adapter));
+        emit IBridgeAdapter.Sent(address(token), 1, 2, guid, bytes("memo"));
         adapter.send(address(token), 1, /*dstChain*/ 2, bytes("memo"));
     }
 
