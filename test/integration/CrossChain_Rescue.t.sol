@@ -67,11 +67,24 @@ contract CrossChain_RescueTest is Test {
         vm.warp(block.timestamp + 11);
         // In this mock, deliver() is called on a different adapter instance (bridgeL1) than send() (bridgeL2).
         // bridgeL1 has no stored packet for `guid`, so token/amount default to zero.
-        // We only assert the emitter and the guid/payload semantics, not token/amount.
-        vm.expectEmit(false, false, false, true, address(bridgeL1)); // only check emitter address
-        // Optionally: don’t emit here; rely on deliver()’s own event. If we want to match guid via topics,
-        // we’d need the event indexed fields. Since they aren’t, skip param checks entirely.
+        // We only assert the guid/payload semantics, not token/amount.
+        vm.recordLogs();
         bridgeL1.deliver(guid, bytes("payload"));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        bytes32 sig = keccak256("Received(address,uint256,uint16,bytes32,bytes)");
+        bool found;
+        for (uint256 i = 0; i < logs.length; i++) {
+            Vm.Log memory log = logs[i];
+            if (log.emitter == address(bridgeL1) && log.topics[0] == sig) {
+                (, , , bytes32 lguid, bytes memory lpayload) = abi.decode(log.data, (address, uint256, uint16, bytes32, bytes));
+                assertEq(lguid, guid);
+                assertEq(lpayload, bytes("payload"));
+                found = true;
+                break;
+            }
+        }
+        assertTrue(found);
 
         // Simulate L1 profit from liquidation to this test (kettle)
         uint256 profit = marketL1.liquidate(user, address(0), address(0), 0);
